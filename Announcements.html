@@ -1,0 +1,58 @@
+<div id="page-announcements" class="page">
+  <div class="page-header">
+    <div>
+      <h2>Announcements</h2>
+      <div class="subtitle">Publish updates for students, parents, and staff.</div>
+    </div>
+    <button class="btn btn-primary" id="new-announcement-btn">+ New Announcement</button>
+  </div>
+
+  <div id="announcements-list"></div>
+</div>
+
+<div class="modal-overlay" id="announcement-modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="announcement-modal-title">New Announcement</h3>
+      <button class="modal-close" type="button" onclick="closeModal('announcement-modal')">&times;</button>
+    </div>
+    <form id="announcement-form">
+      <div class="modal-body">
+        <input type="hidden" id="af-editing-id">
+        <div class="form-group">
+          <label for="af-title">Title <span class="req">*</span></label>
+          <input type="text" id="af-title" required>
+        </div>
+        <div class="form-group">
+          <label for="af-message">Message <span class="req">*</span></label>
+          <textarea id="af-message" required></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="af-audience">Audience <span class="req">*</span></label>
+            <select id="af-audience" required>
+              <option value="All Students">All Students</option>
+              <option value="Parents/Guardians">Parents/Guardians</option>
+              <option value="Teachers">Teachers</option>
+              <option value="Specific Class">Specific Class</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="af-date">Date</label>
+            <input type="date" id="af-date">
+          </div>
+        </div>
+        <div class="form-group" id="af-class-group" style="display:none;">
+          <label for="af-class">Class</label>
+          <select id="af-class" class="class-select-source" data-keep-first="true">
+            <option value="">Select class</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('announcement-modal')">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="announcement-submit-btn">Save Announcement</button>
+      </div>
+    </form>
+  </div>
+</div>

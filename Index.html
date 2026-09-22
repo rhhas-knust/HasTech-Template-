@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <title><?= schoolName ?> | HASTECH School Management System</title>
+  <?!= include('Styles'); ?>
+</head>
+<body>
+
+  <?!= include('Login'); ?>
+
+  <div id="global-loader">
+    <span class="spinner dark"></span>
+    <div class="loader-text" id="loader-text">Loading...</div>
+  </div>
+  <div id="toast-container"></div>
+  <div id="sidebar-backdrop"></div>
+
+  <div id="app-shell">
+    <aside id="sidebar">
+      <div class="brand">
+        <div class="logo-badge">H</div>
+        <div class="brand-text">
+          <div class="school-name" id="school-name-side"><?= schoolName ?></div>
+          <div class="app-label">HASTECH School System</div>
+        </div>
+      </div>
+      <nav>
+        <div class="nav-item active" data-page="dashboard"><span class="nav-icon">&#127968;</span> Dashboard</div>
+
+        <div class="nav-group-label">Students</div>
+        <div class="nav-item" data-page="students"><span class="nav-icon">&#128101;</span> All Students</div>
+        <div class="nav-item" data-page="register-student"><span class="nav-icon">&#128221;</span> Register Student</div>
+
+        <div class="nav-group-label">Operations</div>
+        <div class="nav-item" data-page="attendance"><span class="nav-icon">&#128203;</span> Attendance</div>
+        <div class="nav-item" data-page="payments"><span class="nav-icon">&#128176;</span> Payments</div>
+        <div class="nav-item" data-page="announcements"><span class="nav-icon">&#128227;</span> Announcements</div>
+        <div class="nav-item" data-page="reports"><span class="nav-icon">&#128202;</span> Reports</div>
+
+        <div class="nav-group-label">System</div>
+        <div class="nav-item" data-page="settings"><span class="nav-icon">&#9881;&#65039;</span> Settings</div>
+        <div class="nav-item" id="logout-btn"><span class="nav-icon">&#128682;</span> Logout</div>
+      </nav>
+      <div class="sidebar-footer">Powered by HASTECH Solutions</div>
+    </aside>
+
+    <div id="main-area">
+      <header id="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button class="mobile-menu-btn" id="mobile-menu-btn">&#9776;</button>
+          <div class="page-title" id="page-title">Dashboard</div>
+        </div>
+        <div class="topbar-right">
+          <div class="user-chip">
+            <div class="avatar" id="user-avatar">A</div>
+            <span id="user-name">Admin</span>
+          </div>
+        </div>
+      </header>
+
+      <main id="content">
+        <?!= include('Dashboard'); ?>
+        <?!= include('Students'); ?>
+        <?!= include('StudentForm'); ?>
+        <?!= include('Attendance'); ?>
+        <?!= include('Payments'); ?>
+        <?!= include('Announcements'); ?>
+        <?!= include('Reports'); ?>
+        <?!= include('Settings'); ?>
+
+        <div class="footer-note">HASTECH School Management System &middot; Powered by HASTECH Solutions</div>
+      </main>
+    </div>
+  </div>
+
+  <?!= include('Scripts'); ?>
+</body>
+</html>

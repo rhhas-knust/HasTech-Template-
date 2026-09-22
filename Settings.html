@@ -1,0 +1,130 @@
+<div id="page-settings" class="page">
+  <div class="page-header">
+    <div>
+      <h2>Settings</h2>
+      <div class="subtitle">School information, classes, and admin users. Changes here affect the entire system.</div>
+    </div>
+  </div>
+
+  <div class="tab-bar">
+    <button type="button" class="tab-btn active" data-settings-tab="general">School Information</button>
+    <button type="button" class="tab-btn" data-settings-tab="classes">Classes</button>
+    <button type="button" class="tab-btn" data-settings-tab="admins">Admin Users</button>
+  </div>
+
+  <div class="settings-tab" id="settings-tab-general">
+    <form id="settings-form" class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label for="set-school-name">School Name</label>
+          <input type="text" id="set-school-name">
+        </div>
+        <div class="form-group">
+          <label for="set-school-motto">School Motto</label>
+          <input type="text" id="set-school-motto">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="set-school-email">School Email</label>
+          <input type="email" id="set-school-email">
+        </div>
+        <div class="form-group">
+          <label for="set-school-phone">School Phone</label>
+          <input type="tel" id="set-school-phone">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="set-school-address">School Address</label>
+        <input type="text" id="set-school-address">
+      </div>
+      <div class="form-group">
+        <label for="set-school-logo">School Logo URL</label>
+        <input type="url" id="set-school-logo" placeholder="https://...">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="set-academic-year">Academic Year</label>
+          <input type="text" id="set-academic-year" placeholder="2026/2027">
+        </div>
+        <div class="form-group">
+          <label for="set-currency">Currency</label>
+          <input type="text" id="set-currency" placeholder="GHS">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="set-admin-email">Admin Notification Email</label>
+        <input type="email" id="set-admin-email">
+      </div>
+      <button type="submit" class="btn btn-primary" id="settings-submit-btn">Save Settings</button>
+    </form>
+  </div>
+
+  <div class="settings-tab" id="settings-tab-classes" style="display:none;">
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-title">Add Class</div>
+        <form id="class-form">
+          <div class="form-group">
+            <label for="cf-name">Class Name <span class="req">*</span></label>
+            <input type="text" id="cf-name" required>
+          </div>
+          <div class="form-group">
+            <label for="cf-fee">Expected Fee</label>
+            <input type="number" id="cf-fee" min="0" step="0.01">
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Add Class</button>
+        </form>
+      </div>
+      <div class="card">
+        <div class="section-title">Existing Classes</div>
+        <div class="table-wrap">
+          <table class="responsive-table">
+            <thead><tr><th>Class</th><th>Academic Year</th><th>Expected Fee</th></tr></thead>
+            <tbody id="classes-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="settings-tab" id="settings-tab-admins" style="display:none;">
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-title">Add Admin User</div>
+        <form id="admin-form">
+          <div class="form-group">
+            <label for="adf-name">Full Name <span class="req">*</span></label>
+            <input type="text" id="adf-name" required>
+          </div>
+          <div class="form-group">
+            <label for="adf-email">Email <span class="req">*</span></label>
+            <input type="email" id="adf-email" required>
+          </div>
+          <div class="form-group">
+            <label for="adf-username">Username <span class="req">*</span></label>
+            <input type="text" id="adf-username" required>
+          </div>
+          <div class="form-group">
+            <label for="adf-role">Role</label>
+            <select id="adf-role">
+              <option value="STAFF">Staff</option>
+              <option value="ADMIN">Admin</option>
+              <option value="SUPER_ADMIN">Super Admin</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary btn-block">Add Admin</button>
+        </form>
+      </div>
+      <div class="card">
+        <div class="section-title">Admin Users</div>
+        <div class="table-wrap">
+          <table class="responsive-table">
+            <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody id="admins-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

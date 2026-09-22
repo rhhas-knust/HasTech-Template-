@@ -1,0 +1,1019 @@
+<script>
+  /* =========================================================================
+     HASTECH School Management System - client-side application logic.
+     Single-page app: all "pages" are <div class="page"> sections toggled
+     with JS. Every server call goes through call() so loading state,
+     duplicate-submit prevention, and error handling are consistent.
+     ========================================================================= */
+
+  var STATE = {
+    admin: null,
+    settings: {},
+    classes: [],
+    students: [],
+    currentStudentId: null,
+    attendance: { className: '', date: '', statuses: {} },
+    pendingRequest: false
+  };
+
+  var STORAGE_KEY = 'hastech_admin_session';
+
+  // ---------------- Server call wrapper ----------------
+  function call(fnName) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    return new Promise(function (resolve, reject) {
+      google.script.run
+        .withSuccessHandler(function (result) { resolve(result); })
+        .withFailureHandler(function (err) {
+          console.error(fnName + ' failed:', err);
+          reject(err);
+        })[fnName].apply(null, args);
+    });
+  }
+
+  function showLoader(text) {
+    document.getElementById('loader-text').textContent = text || 'Loading...';
+    document.getElementById('global-loader').classList.add('visible');
+  }
+  function hideLoader() {
+    document.getElementById('global-loader').classList.remove('visible');
+  }
+
+  function toast(message, type, title) {
+    var container = document.getElementById('toast-container');
+    var el = document.createElement('div');
+    el.className = 'toast ' + (type || '');
+    el.innerHTML = '<div class="toast-title">' + escapeHtml(title || (type === 'error' ? 'Error' : 'Success')) + '</div><div>' + escapeHtml(message) + '</div>';
+    container.appendChild(el);
+    setTimeout(function () {
+      el.style.opacity = '0';
+      el.style.transition = 'opacity 0.3s ease';
+      setTimeout(function () { el.remove(); }, 300);
+    }, 3800);
+  }
+
+  function friendlyError() {
+    toast('Something went wrong. Please try again.', 'error');
+  }
+
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function formatCurrency(amount) {
+    var currency = (STATE.settings && STATE.settings.CURRENCY) || 'GHS';
+    var n = parseFloat(amount) || 0;
+    return currency + ' ' + n.toFixed(2);
+  }
+
+  function formatDate(value) {
+    if (!value) return 'N/A';
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return String(value);
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function debounce(fn, delay) {
+    var timer;
+    return function () {
+      var args = arguments, ctx = this;
+      clearTimeout(timer);
+      timer = setTimeout(function () { fn.apply(ctx, args); }, delay);
+    };
+  }
+
+  // ---------------- Init ----------------
+  document.addEventListener('DOMContentLoaded', function () {
+    bindLoginForm();
+    bindGlobalUI();
+    initSystem();
+  });
+
+  function initSystem() {
+    showLoader('Starting up...');
+    call('ensureSystemReady').then(function () {
+      return call('getSettingsForClient');
+    }).then(function (settings) {
+      STATE.settings = settings || {};
+      var nameEl = document.getElementById('login-school-name');
+      var mottoEl = document.getElementById('login-motto');
+      if (nameEl) nameEl.textContent = STATE.settings.SCHOOL_NAME || 'HASTECH School';
+      if (mottoEl) mottoEl.textContent = STATE.settings.SCHOOL_MOTTO || 'HASTECH School Management System';
+      hideLoader();
+      restoreSession();
+    }).catch(function () {
+      hideLoader();
+      toast('Could not connect to the system. Please refresh the page.', 'error');
+    });
+  }
+
+  function restoreSession() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        STATE.admin = JSON.parse(raw);
+        enterApp();
+        return;
+      }
+    } catch (e) { /* ignore corrupted storage */ }
+    document.getElementById('login-screen').style.display = 'flex';
+  }
+
+  // ---------------- Login ----------------
+  function bindLoginForm() {
+    var form = document.getElementById('login-form');
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (STATE.pendingRequest) return;
+      var username = document.getElementById('login-username').value.trim();
+      var password = document.getElementById('login-password').value;
+      var btn = document.getElementById('login-submit-btn');
+      setBtnLoading(btn, true, 'Signing in...');
+      STATE.pendingRequest = true;
+      call('login', username, password).then(function (res) {
+        STATE.pendingRequest = false;
+        setBtnLoading(btn, false, 'Sign In');
+        if (res.success) {
+          STATE.admin = res.admin;
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(res.admin));
+          document.getElementById('login-screen').style.display = 'none';
+          enterApp();
+        } else {
+          toast(res.message || 'Invalid username or password.', 'error');
+        }
+      }).catch(function () {
+        STATE.pendingRequest = false;
+        setBtnLoading(btn, false, 'Sign In');
+        friendlyError();
+      });
+    });
+  }
+
+  function setBtnLoading(btn, loading, label) {
+    btn.disabled = loading;
+    btn.innerHTML = loading ? '<span class="spinner"></span> ' + escapeHtml(label) : escapeHtml(label);
+  }
+
+  function logout() {
+    localStorage.removeItem(STORAGE_KEY);
+    STATE.admin = null;
+    document.getElementById('app-shell').classList.remove('visible');
+    document.getElementById('login-screen').style.display = 'flex';
+    document.getElementById('login-password').value = '';
+  }
+
+  // ---------------- App shell / navigation ----------------
+  function enterApp() {
+    document.getElementById('app-shell').classList.add('visible');
+    document.getElementById('user-name').textContent = STATE.admin.name;
+    document.getElementById('user-avatar').textContent = (STATE.admin.name || 'A').charAt(0).toUpperCase();
+    var dashNameEl = document.getElementById('dashboard-admin-name');
+    if (dashNameEl) dashNameEl.textContent = STATE.admin.name;
+    document.getElementById('school-name-side').textContent = STATE.settings.SCHOOL_NAME || 'HASTECH School';
+    loadClasses();
+    navigateTo('dashboard');
+  }
+
+  function bindGlobalUI() {
+    document.querySelectorAll('.nav-item[data-page]').forEach(function (item) {
+      item.addEventListener('click', function () { navigateTo(item.getAttribute('data-page')); });
+    });
+    document.getElementById('logout-btn').addEventListener('click', logout);
+    document.getElementById('mobile-menu-btn').addEventListener('click', function () {
+      document.getElementById('sidebar').classList.add('open');
+      document.getElementById('sidebar-backdrop').classList.add('visible');
+    });
+    document.getElementById('sidebar-backdrop').addEventListener('click', closeMobileSidebar);
+
+    document.querySelectorAll('[data-quick-action]').forEach(function (btn) {
+      btn.addEventListener('click', function () { navigateTo(btn.getAttribute('data-quick-action')); });
+    });
+
+    // Modal close-on-backdrop-click
+    document.querySelectorAll('.modal-overlay').forEach(function (overlay) {
+      overlay.addEventListener('click', function (e) {
+        if (e.target === overlay) closeModal(overlay.id);
+      });
+    });
+
+    bindStudentForm();
+    bindAttendanceUI();
+    bindPaymentForm();
+    bindAnnouncementForm();
+    bindReportsUI();
+    bindSettingsUI();
+    bindClassForm();
+    bindAdminForm();
+  }
+
+  function closeMobileSidebar() {
+    document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop').classList.remove('visible');
+  }
+
+  var PAGE_TITLES = {
+    dashboard: 'Dashboard', students: 'Student Directory', 'register-student': 'Register Student',
+    attendance: 'Attendance', payments: 'Payments', announcements: 'Announcements',
+    reports: 'Reports', settings: 'Settings', 'student-profile': 'Student Profile'
+  };
+
+  function navigateTo(page) {
+    document.querySelectorAll('.page').forEach(function (p) { p.classList.remove('active'); });
+    var target = document.getElementById('page-' + page);
+    if (target) target.classList.add('active');
+    document.querySelectorAll('.nav-item[data-page]').forEach(function (item) {
+      item.classList.toggle('active', item.getAttribute('data-page') === page);
+    });
+    document.getElementById('page-title').textContent = PAGE_TITLES[page] || 'HASTECH';
+    closeMobileSidebar();
+
+    if (page === 'dashboard') loadDashboard();
+    else if (page === 'students') loadStudents();
+    else if (page === 'register-student') resetStudentForm();
+    else if (page === 'attendance') loadAttendancePage();
+    else if (page === 'payments') loadPayments();
+    else if (page === 'announcements') loadAnnouncements();
+    else if (page === 'reports') { /* rendered on demand */ }
+    else if (page === 'settings') loadSettingsPage();
+  }
+
+  function openModal(id) { document.getElementById(id).classList.add('open'); }
+  function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+  // ================= DASHBOARD =================
+  function loadDashboard() {
+    var container = document.getElementById('dashboard-content');
+    call('getDashboardStats').then(function (stats) {
+      STATE.settings = stats.settings || STATE.settings;
+      document.getElementById('school-name-side').textContent = STATE.settings.SCHOOL_NAME || 'HASTECH School';
+
+      document.getElementById('stat-total-students').textContent = stats.totalStudents;
+      document.getElementById('stat-active-students').textContent = stats.activeStudents;
+      document.getElementById('stat-total-classes').textContent = stats.totalClasses;
+      document.getElementById('stat-today-attendance').textContent = stats.todayAttendance.present + ' / ' + stats.todayAttendance.total;
+      document.getElementById('stat-outstanding-fees').textContent = formatCurrency(stats.outstandingFees);
+      document.getElementById('stat-payments-month').textContent = formatCurrency(stats.paymentsThisMonth.total);
+
+      var recentStudentsEl = document.getElementById('recent-students-list');
+      recentStudentsEl.innerHTML = stats.recentStudents.length ? stats.recentStudents.map(function (s) {
+        return '<div class="attendance-row"><div><strong>' + escapeHtml(s.FIRST_NAME + ' ' + s.LAST_NAME) + '</strong><div style="color:var(--text-muted);font-size:12px;">' + escapeHtml(s.STUDENT_ID) + ' &middot; ' + escapeHtml(s.CLASS) + '</div></div>' +
+          '<button class="btn btn-outline btn-sm" onclick="viewStudentProfile(\'' + s.STUDENT_ID + '\')">View</button></div>';
+      }).join('') : emptyState('No students registered yet.');
+
+      var activityEl = document.getElementById('recent-activity-list');
+      activityEl.innerHTML = stats.recentActivity.length ? stats.recentActivity.map(function (a) {
+        return '<div class="attendance-row"><div><strong>' + escapeHtml(a.ACTION) + '</strong><div style="color:var(--text-muted);font-size:12px;">' + escapeHtml(a.DESCRIPTION) + '</div></div>' +
+          '<div style="color:var(--text-muted);font-size:11px;white-space:nowrap;">' + formatDate(a.TIMESTAMP) + '</div></div>';
+      }).join('') : emptyState('No activity yet.');
+
+      var annEl = document.getElementById('dashboard-announcements-list');
+      annEl.innerHTML = stats.announcements.length ? stats.announcements.map(function (a) {
+        return '<div class="attendance-row"><div><strong>' + escapeHtml(a.TITLE) + '</strong><div style="color:var(--text-muted);font-size:12px;">' + escapeHtml(a.MESSAGE).substring(0, 90) + (a.MESSAGE.length > 90 ? '...' : '') + '</div></div>' +
+          '<span class="badge badge-blue">' + escapeHtml(a.AUDIENCE) + '</span></div>';
+      }).join('') : emptyState('No announcements published.');
+    }).catch(friendlyError);
+  }
+
+  function emptyState(msg) {
+    return '<div class="empty-state"><div class="empty-icon">&#128203;</div>' + escapeHtml(msg) + '</div>';
+  }
+
+  // ================= CLASSES (shared) =================
+  function loadClasses() {
+    return call('getClasses').then(function (classes) {
+      STATE.classes = classes;
+      var selects = document.querySelectorAll('.class-select-source');
+      selects.forEach(function (sel) {
+        var keepFirst = sel.getAttribute('data-keep-first') === 'true';
+        var current = sel.value;
+        sel.innerHTML = (keepFirst ? sel.querySelector('option')?.outerHTML || '' : '') +
+          classes.map(function (c) { return '<option value="' + escapeHtml(c.CLASS_NAME) + '">' + escapeHtml(c.CLASS_NAME) + '</option>'; }).join('');
+        if (current) sel.value = current;
+      });
+      return classes;
+    }).catch(friendlyError);
+  }
+
+  // ================= STUDENTS =================
+  function loadStudents() {
+    var filters = {
+      search: document.getElementById('student-search').value.trim(),
+      className: document.getElementById('student-filter-class').value,
+      gender: document.getElementById('student-filter-gender').value,
+      status: document.getElementById('student-filter-status').value
+    };
+    var tbody = document.getElementById('students-table-body');
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><span class="spinner dark"></span> Loading students...</div></td></tr>';
+    call('getStudents', filters).then(function (students) {
+      STATE.students = students;
+      if (students.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7">' + emptyState('No students found.') + '</td></tr>';
+        return;
+      }
+      tbody.innerHTML = students.map(function (s) {
+        return '<tr>' +
+          '<td data-label="Student ID"><strong>' + escapeHtml(s.STUDENT_ID) + '</strong></td>' +
+          '<td data-label="Name">' + escapeHtml(s.FIRST_NAME + ' ' + s.LAST_NAME) + '</td>' +
+          '<td data-label="Class">' + escapeHtml(s.CLASS) + '</td>' +
+          '<td data-label="Gender">' + escapeHtml(s.GENDER) + '</td>' +
+          '<td data-label="Status">' + statusBadge(s.STATUS) + '</td>' +
+          '<td data-label="Registered">' + formatDate(s.CREATED_AT) + '</td>' +
+          '<td data-label="Actions"><button class="btn btn-outline btn-sm" onclick="viewStudentProfile(\'' + s.STUDENT_ID + '\')">View Profile</button></td>' +
+          '</tr>';
+      }).join('');
+    }).catch(function () {
+      tbody.innerHTML = '<tr><td colspan="7">' + emptyState('Could not load students.') + '</td></tr>';
+    });
+  }
+
+  function statusBadge(status) {
+    var map = { ACTIVE: 'badge-green', INACTIVE: 'badge-gray', GRADUATED: 'badge-blue', TRANSFERRED: 'badge-orange' };
+    return '<span class="badge ' + (map[status] || 'badge-gray') + '">' + escapeHtml(status) + '</span>';
+  }
+
+  var studentSearchDebounced = debounce(loadStudents, 350);
+
+  function bindStudentForm() {
+    document.getElementById('student-search').addEventListener('input', studentSearchDebounced);
+    ['student-filter-class', 'student-filter-gender', 'student-filter-status'].forEach(function (id) {
+      document.getElementById(id).addEventListener('change', loadStudents);
+    });
+
+    var form = document.getElementById('student-form');
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (STATE.pendingRequest) return;
+      var data = {
+        studentId: document.getElementById('sf-editing-id').value || '',
+        firstName: document.getElementById('sf-first-name').value,
+        middleName: document.getElementById('sf-middle-name').value,
+        lastName: document.getElementById('sf-last-name').value,
+        dob: document.getElementById('sf-dob').value,
+        gender: document.getElementById('sf-gender').value,
+        className: document.getElementById('sf-class').value,
+        academicYear: document.getElementById('sf-academic-year').value,
+        admissionDate: document.getElementById('sf-admission-date').value,
+        phone: document.getElementById('sf-phone').value,
+        email: document.getElementById('sf-email').value,
+        address: document.getElementById('sf-address').value,
+        previousSchool: document.getElementById('sf-previous-school').value,
+        status: document.getElementById('sf-status').value,
+        guardianName: document.getElementById('sf-guardian-name').value,
+        guardianRelationship: document.getElementById('sf-guardian-relationship').value,
+        guardianPhone: document.getElementById('sf-guardian-phone').value,
+        guardianEmail: document.getElementById('sf-guardian-email').value,
+        guardianOccupation: document.getElementById('sf-guardian-occupation').value,
+        guardianAddress: document.getElementById('sf-guardian-address').value
+      };
+      if (!data.firstName.trim()) { toast('Please enter the student’s first name.', 'error'); return; }
+      if (!data.lastName.trim()) { toast('Please enter the student’s last name.', 'error'); return; }
+      if (!data.className) { toast('Please select a class.', 'error'); return; }
+
+      var btn = document.getElementById('student-submit-btn');
+      var isEdit = !!data.studentId;
+      setBtnLoading(btn, true, isEdit ? 'Saving...' : 'Registering student...');
+      STATE.pendingRequest = true;
+      var fn = isEdit ? 'updateStudent' : 'createStudent';
+      call(fn, data, STATE.admin.name).then(function (res) {
+        STATE.pendingRequest = false;
+        setBtnLoading(btn, false, isEdit ? 'Save Changes' : 'Register Student');
+        if (res.success) {
+          toast(res.message, 'success');
+          resetStudentForm();
+          navigateTo('students');
+        } else {
+          toast(res.message || 'Could not save student.', 'error');
+        }
+      }).catch(function () {
+        STATE.pendingRequest = false;
+        setBtnLoading(btn, false, isEdit ? 'Save Changes' : 'Register Student');
+        friendlyError();
+      });
+    });
+  }
+
+  function resetStudentForm() {
+    document.getElementById('student-form').reset();
+    document.getElementById('sf-editing-id').value = '';
+    document.getElementById('student-form-title').textContent = 'Register Student';
+    document.getElementById('student-submit-btn').textContent = 'Register Student';
+    document.getElementById('sf-academic-year').value = STATE.settings.ACADEMIC_YEAR || '';
+    var today = new Date().toISOString().substring(0, 10);
+    document.getElementById('sf-admission-date').value = today;
+  }
+
+  function editStudent(studentId) {
+    var s = STATE.students.filter(function (x) { return x.STUDENT_ID === studentId; })[0];
+    if (!s) return;
+    navigateTo('register-student');
+    document.getElementById('student-form-title').textContent = 'Edit Student';
+    document.getElementById('student-submit-btn').textContent = 'Save Changes';
+    document.getElementById('sf-editing-id').value = s.STUDENT_ID;
+    document.getElementById('sf-first-name').value = s.FIRST_NAME;
+    document.getElementById('sf-middle-name').value = s.MIDDLE_NAME;
+    document.getElementById('sf-last-name').value = s.LAST_NAME;
+    document.getElementById('sf-dob').value = toDateInputValue(s.DOB);
+    document.getElementById('sf-gender').value = s.GENDER;
+    document.getElementById('sf-class').value = s.CLASS;
+    document.getElementById('sf-academic-year').value = s.ACADEMIC_YEAR;
+    document.getElementById('sf-admission-date').value = toDateInputValue(s.ADMISSION_DATE);
+    document.getElementById('sf-phone').value = s.PHONE;
+    document.getElementById('sf-email').value = s.EMAIL;
+    document.getElementById('sf-address').value = s.ADDRESS;
+    document.getElementById('sf-previous-school').value = s.PREVIOUS_SCHOOL;
+    document.getElementById('sf-status').value = s.STATUS;
+
+    call('getStudentProfile', studentId).then(function (profile) {
+      if (profile.success && profile.guardians.length) {
+        var g = profile.guardians[0];
+        document.getElementById('sf-guardian-name').value = g.NAME;
+        document.getElementById('sf-guardian-relationship').value = g.RELATIONSHIP;
+        document.getElementById('sf-guardian-phone').value = g.PHONE;
+        document.getElementById('sf-guardian-email').value = g.EMAIL;
+        document.getElementById('sf-guardian-occupation').value = g.OCCUPATION;
+        document.getElementById('sf-guardian-address').value = g.ADDRESS;
+      }
+    });
+  }
+
+  function toDateInputValue(value) {
+    if (!value) return '';
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return '';
+    return d.toISOString().substring(0, 10);
+  }
+
+  function viewStudentProfile(studentId) {
+    STATE.currentStudentId = studentId;
+    navigateTo('student-profile');
+    var body = document.getElementById('student-profile-body');
+    body.innerHTML = '<div class="empty-state"><span class="spinner dark"></span> Loading profile...</div>';
+    call('getStudentProfile', studentId).then(function (profile) {
+      if (!profile.success) { body.innerHTML = emptyState(profile.message || 'Student not found.'); return; }
+      renderStudentProfile(profile);
+    }).catch(function () { body.innerHTML = emptyState('Could not load student profile.'); });
+  }
+
+  function renderStudentProfile(profile) {
+    var s = profile.student, g = profile.guardians[0] || {};
+    var att = profile.attendanceSummary, pay = profile.paymentSummary;
+    var initials = (s.FIRST_NAME.charAt(0) + s.LAST_NAME.charAt(0)).toUpperCase();
+    var pct = att.percentage;
+    var pctClass = pct >= 80 ? '' : (pct >= 60 ? 'warn' : 'danger');
+
+    var html = '';
+    html += '<div class="profile-header">';
+    html += '<div class="profile-photo">' + (s.PHOTO_URL ? '<img src="' + escapeHtml(s.PHOTO_URL) + '">' : initials) + '</div>';
+    html += '<div><h2 style="margin-bottom:2px;">' + escapeHtml(s.FIRST_NAME + ' ' + s.LAST_NAME) + '</h2>';
+    html += '<div style="color:var(--text-muted);font-size:13px;">' + escapeHtml(s.STUDENT_ID) + ' &middot; ' + escapeHtml(s.CLASS) + ' &middot; ' + statusBadge(s.STATUS) + '</div></div>';
+    html += '</div>';
+
+    html += '<div class="quick-actions" style="margin-bottom:20px;">';
+    html += '<button class="btn btn-outline" onclick="editStudent(\'' + s.STUDENT_ID + '\')">Edit</button>';
+    html += '<button class="btn btn-accent" id="gen-profile-pdf-btn" onclick="generateProfilePdf(\'' + s.STUDENT_ID + '\')">Generate Profile PDF</button>';
+    html += '</div>';
+
+    html += '<div class="grid-2">';
+    html += '<div class="card"><div class="section-title">Student Information</div><div class="info-grid">';
+    html += infoItem('Date of Birth', formatDate(s.DOB));
+    html += infoItem('Gender', s.GENDER);
+    html += infoItem('Academic Year', s.ACADEMIC_YEAR);
+    html += infoItem('Admission Date', formatDate(s.ADMISSION_DATE));
+    html += infoItem('Phone', s.PHONE || 'N/A');
+    html += infoItem('Email', s.EMAIL || 'N/A');
+    html += infoItem('Address', s.ADDRESS || 'N/A');
+    html += infoItem('Previous School', s.PREVIOUS_SCHOOL || 'N/A');
+    html += '</div></div>';
+
+    html += '<div class="card"><div class="section-title">Guardian</div><div class="info-grid">';
+    html += infoItem('Name', g.NAME || 'N/A');
+    html += infoItem('Relationship', g.RELATIONSHIP || 'N/A');
+    html += infoItem('Phone', g.PHONE || 'N/A');
+    html += infoItem('Email', g.EMAIL || 'N/A');
+    html += infoItem('Occupation', g.OCCUPATION || 'N/A');
+    html += infoItem('Address', g.ADDRESS || 'N/A');
+    html += '</div></div>';
+    html += '</div>';
+
+    html += '<div class="grid-2" style="margin-top:18px;">';
+    html += '<div class="card"><div class="section-title">Attendance Summary</div>';
+    html += '<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;"><div style="font-size:28px;font-weight:800;color:var(--navy);">' + pct + '%</div><div style="flex:1;"><div class="progress-track"><div class="progress-fill ' + pctClass + '" style="width:' + pct + '%;"></div></div></div></div>';
+    html += '<div class="info-grid">' + infoItem('Total Days', att.totalDays) + infoItem('Present', att.present) + infoItem('Absent', att.absent) + infoItem('Late', att.late) + '</div>';
+    html += '</div>';
+
+    html += '<div class="card"><div class="section-title">Payment Summary</div>';
+    html += '<div class="info-grid">' + infoItem('Total Paid', formatCurrency(pay.totalPaid)) + infoItem('Expected Fee', formatCurrency(pay.expectedFee)) + infoItem('Outstanding', formatCurrency(pay.outstanding)) + '</div>';
+    html += '<div style="margin-top:14px;">' + (pay.payments.length ? pay.payments.slice(0, 5).map(function (p) {
+      return '<div class="attendance-row"><div>' + escapeHtml(p.PAYMENT_TYPE) + '<div style="color:var(--text-muted);font-size:12px;">' + formatDate(p.PAYMENT_DATE) + '</div></div><strong>' + formatCurrency(p.AMOUNT) + '</strong></div>';
+    }).join('') : emptyState('No payments recorded.')) + '</div>';
+    html += '</div>';
+    html += '</div>';
+
+    document.getElementById('student-profile-body').innerHTML = html;
+  }
+
+  function infoItem(label, value) {
+    return '<div class="info-item"><div class="info-label">' + escapeHtml(label) + '</div><div class="info-value">' + escapeHtml(value) + '</div></div>';
+  }
+
+  function generateProfilePdf(studentId) {
+    var btn = document.getElementById('gen-profile-pdf-btn');
+    setBtnLoading(btn, true, 'Generating PDF...');
+    call('generateStudentProfilePDF', studentId, STATE.admin.name).then(function (res) {
+      setBtnLoading(btn, false, 'Generate Profile PDF');
+      if (res.success) {
+        toast('PDF generated successfully.', 'success');
+        window.open(res.url, '_blank');
+      } else {
+        toast(res.message || 'Could not generate PDF.', 'error');
+      }
+    }).catch(function () {
+      setBtnLoading(btn, false, 'Generate Profile PDF');
+      friendlyError();
+    });
+  }
+
+  // ================= ATTENDANCE =================
+  function bindAttendanceUI() {
+    document.getElementById('att-date').valueAsDate = new Date();
+    document.getElementById('att-class').addEventListener('change', loadAttendanceStudents);
+    document.getElementById('att-date').addEventListener('change', loadAttendanceStudents);
+    document.getElementById('att-mark-all-present').addEventListener('click', function () {
+      Object.keys(STATE.attendance.statuses).forEach(function (id) { setAttendanceStatus(id, 'Present'); });
+    });
+    document.getElementById('attendance-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      saveAttendance();
+    });
+  }
+
+  function loadAttendancePage() {
+    if (STATE.classes.length === 0) {
+      loadClasses().then(loadAttendanceStudents);
+    } else {
+      loadAttendanceStudents();
+    }
+  }
+
+  function loadAttendanceStudents() {
+    var className = document.getElementById('att-class').value;
+    var date = document.getElementById('att-date').value;
+    var list = document.getElementById('attendance-student-list');
+    if (!className || !date) {
+      list.innerHTML = emptyState('Select a class and date to take attendance.');
+      return;
+    }
+    STATE.attendance = { className: className, date: date, statuses: {} };
+    list.innerHTML = '<div class="empty-state"><span class="spinner dark"></span> Loading students...</div>';
+
+    Promise.all([
+      call('getStudentsForAttendance', className),
+      call('getExistingAttendance', date, className)
+    ]).then(function (results) {
+      var students = results[0], existing = results[1];
+      if (students.length === 0) {
+        list.innerHTML = emptyState('No active students in this class.');
+        return;
+      }
+      list.innerHTML = students.map(function (s) {
+        var status = existing[s.STUDENT_ID] || 'Present';
+        STATE.attendance.statuses[s.STUDENT_ID] = status;
+        return attendanceRowHtml(s, status);
+      }).join('');
+    }).catch(function () {
+      list.innerHTML = emptyState('Could not load students.');
+    });
+  }
+
+  function attendanceRowHtml(s, status) {
+    return '<div class="attendance-row" data-student-id="' + s.STUDENT_ID + '" data-student-name="' + escapeHtml(s.FIRST_NAME + ' ' + s.LAST_NAME) + '">' +
+      '<div><strong>' + escapeHtml(s.FIRST_NAME + ' ' + s.LAST_NAME) + '</strong><div style="color:var(--text-muted);font-size:12px;">' + escapeHtml(s.STUDENT_ID) + '</div></div>' +
+      '<div class="attendance-status-btns">' +
+      ['Present', 'Absent', 'Late'].map(function (st) {
+        return '<button type="button" class="status-btn ' + st.toLowerCase() + (status === st ? ' selected' : '') + '" onclick="setAttendanceStatus(\'' + s.STUDENT_ID + '\',\'' + st + '\')">' + st + '</button>';
+      }).join('') +
+      '</div></div>';
+  }
+
+  function setAttendanceStatus(studentId, status) {
+    STATE.attendance.statuses[studentId] = status;
+    var row = document.querySelector('.attendance-row[data-student-id="' + studentId + '"]');
+    if (!row) return;
+    row.querySelectorAll('.status-btn').forEach(function (b) { b.classList.remove('selected'); });
+    row.querySelector('.status-btn.' + status.toLowerCase()).classList.add('selected');
+  }
+
+  function saveAttendance() {
+    var ids = Object.keys(STATE.attendance.statuses);
+    if (ids.length === 0) { toast('No students to save attendance for.', 'error'); return; }
+    if (STATE.pendingRequest) return;
+    var btn = document.getElementById('save-attendance-btn');
+    setBtnLoading(btn, true, 'Saving attendance...');
+    STATE.pendingRequest = true;
+
+    var records = ids.map(function (id) {
+      var row = document.querySelector('.attendance-row[data-student-id="' + id + '"]');
+      return { studentId: id, studentName: row.getAttribute('data-student-name'), status: STATE.attendance.statuses[id] };
+    });
+
+    call('recordAttendance', STATE.attendance.date, STATE.attendance.className, records, STATE.admin.name).then(function (res) {
+      STATE.pendingRequest = false;
+      setBtnLoading(btn, false, 'Save Attendance');
+      if (res.success) toast(res.message, 'success');
+      else toast(res.message || 'Could not save attendance.', 'error');
+    }).catch(function () {
+      STATE.pendingRequest = false;
+      setBtnLoading(btn, false, 'Save Attendance');
+      friendlyError();
+    });
+  }
+
+  // ================= PAYMENTS =================
+  function bindPaymentForm() {
+    document.getElementById('pay-date').valueAsDate = new Date();
+    document.getElementById('payment-student-search').addEventListener('input', debounce(searchStudentsForPayment, 300));
+
+    document.getElementById('payment-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (STATE.pendingRequest) return;
+      var data = {
+        studentId: document.getElementById('pay-student-id').value,
+        paymentType: document.getElementById('pay-type').value,
+        amount: document.getElementById('pay-amount').value,
+        academicYear: STATE.settings.ACADEMIC_YEAR,
+        paymentDate: document.getElementById('pay-date').value,
+        paymentMethod: document.getElementById('pay-method').value,
+        reference: document.getElementById('pay-reference').value
+      };
+      if (!data.studentId) { toast('Please select a student.', 'error'); return; }
+      if (!data.amount || parseFloat(data.amount) <= 0) { toast('Please enter a valid payment amount.', 'error'); return; }
+
+      var btn = document.getElementById('payment-submit-btn');
+      setBtnLoading(btn, true, 'Recording payment...');
+      STATE.pendingRequest = true;
+      call('recordPayment', data, STATE.admin.name).then(function (res) {
+        STATE.pendingRequest = false;
+        setBtnLoading(btn, false, 'Record Payment');
+        if (res.success) {
+          toast(res.message, 'success');
+          document.getElementById('payment-form').reset();
+          document.getElementById('pay-date').valueAsDate = new Date();
+          document.getElementById('pay-student-id').value = '';
+          document.getElementById('payment-student-search').value = '';
+          loadPayments();
+        } else {
+          toast(res.message || 'Could not record payment.', 'error');
+        }
+      }).catch(function () {
+        STATE.pendingRequest = false;
+        setBtnLoading(btn, false, 'Record Payment');
+        friendlyError();
+      });
+    });
+
+    document.getElementById('payments-filter-class').addEventListener('change', loadPayments);
+    document.getElementById('payments-filter-type').addEventListener('change', loadPayments);
+  }
+
+  function searchStudentsForPayment() {
+    var term = document.getElementById('payment-student-search').value.trim();
+    var resultsEl = document.getElementById('payment-student-results');
+    if (!term) { resultsEl.innerHTML = ''; resultsEl.style.display = 'none'; return; }
+    call('getStudents', { search: term }).then(function (students) {
+      if (students.length === 0) { resultsEl.innerHTML = '<div class="empty-state" style="padding:10px;">No students found.</div>'; resultsEl.style.display = 'block'; return; }
+      resultsEl.innerHTML = students.slice(0, 8).map(function (s) {
+        return '<div class="attendance-row" style="cursor:pointer;padding:8px 10px;" onclick="selectPaymentStudent(\'' + s.STUDENT_ID + '\',\'' + escapeHtml(s.FIRST_NAME + ' ' + s.LAST_NAME).replace(/'/g, "\\'") + '\')">' +
+          '<div>' + escapeHtml(s.FIRST_NAME + ' ' + s.LAST_NAME) + '<div style="color:var(--text-muted);font-size:12px;">' + escapeHtml(s.STUDENT_ID) + ' &middot; ' + escapeHtml(s.CLASS) + '</div></div></div>';
+      }).join('');
+      resultsEl.style.display = 'block';
+    });
+  }
+
+  function selectPaymentStudent(studentId, name) {
+    document.getElementById('pay-student-id').value = studentId;
+    document.getElementById('payment-student-search').value = name + ' (' + studentId + ')';
+    document.getElementById('payment-student-results').style.display = 'none';
+    document.getElementById('payment-student-results').innerHTML = '';
+  }
+
+  function loadPayments() {
+    var filters = { className: document.getElementById('payments-filter-class').value, paymentType: document.getElementById('payments-filter-type').value };
+    var tbody = document.getElementById('payments-table-body');
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><span class="spinner dark"></span> Loading payments...</div></td></tr>';
+    call('getPayments', filters).then(function (payments) {
+      if (payments.length === 0) { tbody.innerHTML = '<tr><td colspan="7">' + emptyState('No payments recorded yet.') + '</td></tr>'; return; }
+      tbody.innerHTML = payments.map(function (p) {
+        return '<tr>' +
+          '<td data-label="Student">' + escapeHtml(p.STUDENT_NAME) + '<div style="color:var(--text-muted);font-size:11px;">' + escapeHtml(p.STUDENT_ID) + '</div></td>' +
+          '<td data-label="Type">' + escapeHtml(p.PAYMENT_TYPE) + '</td>' +
+          '<td data-label="Amount"><strong>' + formatCurrency(p.AMOUNT) + '</strong></td>' +
+          '<td data-label="Method">' + escapeHtml(p.PAYMENT_METHOD) + '</td>' +
+          '<td data-label="Date">' + formatDate(p.PAYMENT_DATE) + '</td>' +
+          '<td data-label="Recorded By">' + escapeHtml(p.RECORDED_BY) + '</td>' +
+          '<td data-label="Actions"><button class="btn btn-outline btn-sm" onclick="generateReceipt(\'' + p.PAYMENT_ID + '\', this)">Generate Receipt</button></td>' +
+          '</tr>';
+      }).join('');
+    }).catch(function () { tbody.innerHTML = '<tr><td colspan="7">' + emptyState('Could not load payments.') + '</td></tr>'; });
+  }
+
+  function generateReceipt(paymentId, btnEl) {
+    setBtnLoading(btnEl, true, 'Generating...');
+    call('generatePaymentReceiptPDF', paymentId, STATE.admin.name).then(function (res) {
+      setBtnLoading(btnEl, false, 'Generate Receipt');
+      if (res.success) { toast('Receipt generated.', 'success'); window.open(res.url, '_blank'); }
+      else toast(res.message || 'Could not generate receipt.', 'error');
+    }).catch(function () {
+      setBtnLoading(btnEl, false, 'Generate Receipt');
+      friendlyError();
+    });
+  }
+
+  // ================= ANNOUNCEMENTS =================
+  function bindAnnouncementForm() {
+    document.getElementById('new-announcement-btn').addEventListener('click', function () {
+      document.getElementById('announcement-form').reset();
+      document.getElementById('af-editing-id').value = '';
+      document.getElementById('announcement-modal-title').textContent = 'New Announcement';
+      toggleAnnouncementClassField();
+      openModal('announcement-modal');
+    });
+    document.getElementById('af-audience').addEventListener('change', toggleAnnouncementClassField);
+
+    document.getElementById('announcement-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (STATE.pendingRequest) return;
+      var id = document.getElementById('af-editing-id').value;
+      var data = {
+        title: document.getElementById('af-title').value,
+        message: document.getElementById('af-message').value,
+        audience: document.getElementById('af-audience').value,
+        className: document.getElementById('af-class').value,
+        date: document.getElementById('af-date').value || new Date().toISOString()
+      };
+      if (!data.title.trim() || !data.message.trim()) { toast('Please fill in the title and message.', 'error'); return; }
+
+      var btn = document.getElementById('announcement-submit-btn');
+      setBtnLoading(btn, true, 'Saving...');
+      STATE.pendingRequest = true;
+      var req = id ? call('updateAnnouncement', Object.assign({ announcementId: id }, data), STATE.admin.name)
+                   : call('createAnnouncement', data, STATE.admin.name);
+      req.then(function (res) {
+        STATE.pendingRequest = false;
+        setBtnLoading(btn, false, 'Save Announcement');
+        if (res.success) {
+          toast(res.message, 'success');
+          closeModal('announcement-modal');
+          loadAnnouncements();
+        } else {
+          toast(res.message || 'Could not save announcement.', 'error');
+        }
+      }).catch(function () {
+        STATE.pendingRequest = false;
+        setBtnLoading(btn, false, 'Save Announcement');
+        friendlyError();
+      });
+    });
+  }
+
+  function toggleAnnouncementClassField() {
+    var isSpecific = document.getElementById('af-audience').value === 'Specific Class';
+    document.getElementById('af-class-group').style.display = isSpecific ? 'block' : 'none';
+  }
+
+  function loadAnnouncements() {
+    var list = document.getElementById('announcements-list');
+    list.innerHTML = '<div class="empty-state"><span class="spinner dark"></span> Loading announcements...</div>';
+    call('getAnnouncements', {}).then(function (items) {
+      if (items.length === 0) { list.innerHTML = emptyState('No announcements yet.'); return; }
+      list.innerHTML = items.map(function (a) {
+        return '<div class="card" style="margin-bottom:12px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:start;gap:10px;flex-wrap:wrap;">' +
+          '<div><h3 style="font-size:15px;">' + escapeHtml(a.TITLE) + '</h3>' +
+          '<div style="color:var(--text-muted);font-size:12px;margin-bottom:8px;">' + formatDate(a.DATE) + ' &middot; ' + escapeHtml(a.AUDIENCE) + (a.CLASS_NAME ? ' (' + escapeHtml(a.CLASS_NAME) + ')' : '') + '</div></div>' +
+          '<span class="badge ' + (a.STATUS === 'PUBLISHED' ? 'badge-green' : 'badge-gray') + '">' + escapeHtml(a.STATUS) + '</span>' +
+          '</div>' +
+          '<p style="margin:6px 0 12px;">' + escapeHtml(a.MESSAGE) + '</p>' +
+          '<div class="quick-actions">' +
+          '<button class="btn btn-outline btn-sm" onclick="editAnnouncement(\'' + a.ANNOUNCEMENT_ID + '\')">Edit</button>' +
+          '<button class="btn btn-outline btn-sm" onclick="togglePublishAnnouncement(\'' + a.ANNOUNCEMENT_ID + '\',\'' + (a.STATUS === 'PUBLISHED' ? 'UNPUBLISHED' : 'PUBLISHED') + '\')">' + (a.STATUS === 'PUBLISHED' ? 'Unpublish' : 'Publish') + '</button>' +
+          '<button class="btn btn-danger btn-sm" onclick="removeAnnouncement(\'' + a.ANNOUNCEMENT_ID + '\')">Delete</button>' +
+          '</div></div>';
+      }).join('');
+      STATE._announcements = items;
+    }).catch(function () { list.innerHTML = emptyState('Could not load announcements.'); });
+  }
+
+  function editAnnouncement(id) {
+    var a = (STATE._announcements || []).filter(function (x) { return x.ANNOUNCEMENT_ID === id; })[0];
+    if (!a) return;
+    document.getElementById('announcement-modal-title').textContent = 'Edit Announcement';
+    document.getElementById('af-editing-id').value = a.ANNOUNCEMENT_ID;
+    document.getElementById('af-title').value = a.TITLE;
+    document.getElementById('af-message').value = a.MESSAGE;
+    document.getElementById('af-audience').value = a.AUDIENCE;
+    document.getElementById('af-class').value = a.CLASS_NAME || '';
+    document.getElementById('af-date').value = toDateInputValue(a.DATE);
+    toggleAnnouncementClassField();
+    openModal('announcement-modal');
+  }
+
+  function togglePublishAnnouncement(id, status) {
+    call('setAnnouncementStatus', id, status, STATE.admin.name).then(function (res) {
+      if (res.success) { toast(res.message, 'success'); loadAnnouncements(); }
+      else toast(res.message || 'Could not update announcement.', 'error');
+    }).catch(friendlyError);
+  }
+
+  function removeAnnouncement(id) {
+    if (!confirm('Delete this announcement? This cannot be undone.')) return;
+    call('deleteAnnouncement', id, STATE.admin.name).then(function (res) {
+      if (res.success) { toast(res.message, 'success'); loadAnnouncements(); }
+      else toast(res.message || 'Could not delete announcement.', 'error');
+    }).catch(friendlyError);
+  }
+
+  // ================= REPORTS =================
+  function bindReportsUI() {
+    document.getElementById('report-generate-btn').addEventListener('click', generateReportView);
+    document.getElementById('report-export-btn').addEventListener('click', exportReportView);
+    document.getElementById('report-type').addEventListener('change', function () {
+      var type = document.getElementById('report-type').value;
+      document.getElementById('report-class-filter-group').style.display = (type === 'STUDENT_LIST' || type === 'CLASS_LIST' || type === 'ATTENDANCE' || type === 'PAYMENTS') ? 'block' : 'none';
+      document.getElementById('report-date-filter-group').style.display = (type === 'ATTENDANCE' || type === 'PAYMENTS' || type === 'REGISTRATION') ? 'flex' : 'none';
+    });
+  }
+
+  function currentReportFilters() {
+    return {
+      className: document.getElementById('report-class').value,
+      startDate: document.getElementById('report-start-date').value,
+      endDate: document.getElementById('report-end-date').value
+    };
+  }
+
+  function generateReportView() {
+    var type = document.getElementById('report-type').value;
+    var resultsEl = document.getElementById('report-results');
+    resultsEl.innerHTML = '<div class="empty-state"><span class="spinner dark"></span> Generating report...</div>';
+    call('generateReport', type, currentReportFilters()).then(function (res) {
+      if (!res.success) { resultsEl.innerHTML = emptyState(res.message || 'Could not generate report.'); return; }
+      renderReportTable(res, resultsEl);
+    }).catch(function () { resultsEl.innerHTML = emptyState('Could not generate report.'); });
+  }
+
+  function renderReportTable(res, container) {
+    var rows = res.rows || [];
+    if (rows.length === 0) { container.innerHTML = emptyState('No data found for the selected filters.'); return; }
+    var hiddenColumns = ['_row', 'IS_DEMO', 'PHOTO_URL', 'MIDDLE_NAME'];
+    var headers = Object.keys(rows[0]).filter(function (k) { return hiddenColumns.indexOf(k) === -1; });
+    var html = '<h3 style="margin-bottom:12px;">' + escapeHtml(res.title) + ' (' + rows.length + ')</h3>';
+    html += '<div class="table-wrap"><table class="responsive-table"><thead><tr>' + headers.map(function (h) { return '<th>' + escapeHtml(h.replace(/_/g, ' ')) + '</th>'; }).join('') + '</tr></thead><tbody>';
+    rows.forEach(function (row) {
+      html += '<tr>' + headers.map(function (h) {
+        var val = row[h];
+        if (h === 'AMOUNT' || h === 'OUTSTANDING' || h === 'PAID' || h === 'EXPECTED_FEE') val = formatCurrency(val);
+        else if (h.indexOf('DATE') !== -1 || h === 'DOB' || h === 'CREATED_AT' || h === 'UPDATED_AT' || h === 'TIMESTAMP') val = formatDate(val);
+        return '<td data-label="' + escapeHtml(h.replace(/_/g, ' ')) + '">' + escapeHtml(val) + '</td>';
+      }).join('') + '</tr>';
+    });
+    html += '</tbody></table></div>';
+    container.innerHTML = html;
+  }
+
+  function exportReportView() {
+    var type = document.getElementById('report-type').value;
+    var btn = document.getElementById('report-export-btn');
+    setBtnLoading(btn, true, 'Exporting PDF...');
+    call('exportReportPDF', type, currentReportFilters(), STATE.admin.name).then(function (res) {
+      setBtnLoading(btn, false, 'Export PDF');
+      if (res.success) { toast('Report exported.', 'success'); window.open(res.url, '_blank'); }
+      else toast(res.message || 'Could not export report.', 'error');
+    }).catch(function () {
+      setBtnLoading(btn, false, 'Export PDF');
+      friendlyError();
+    });
+  }
+
+  // ================= SETTINGS =================
+  function bindSettingsUI() {
+    document.querySelectorAll('.tab-btn[data-settings-tab]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var tab = btn.getAttribute('data-settings-tab');
+        document.querySelectorAll('.tab-btn[data-settings-tab]').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        document.querySelectorAll('.settings-tab').forEach(function (panel) { panel.style.display = 'none'; });
+        document.getElementById('settings-tab-' + tab).style.display = 'block';
+      });
+    });
+
+    document.getElementById('settings-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (STATE.pendingRequest) return;
+      var data = {
+        SCHOOL_NAME: document.getElementById('set-school-name').value,
+        SCHOOL_MOTTO: document.getElementById('set-school-motto').value,
+        SCHOOL_EMAIL: document.getElementById('set-school-email').value,
+        SCHOOL_PHONE: document.getElementById('set-school-phone').value,
+        SCHOOL_ADDRESS: document.getElementById('set-school-address').value,
+        SCHOOL_LOGO_URL: document.getElementById('set-school-logo').value,
+        ACADEMIC_YEAR: document.getElementById('set-academic-year').value,
+        CURRENCY: document.getElementById('set-currency').value,
+        ADMIN_EMAIL: document.getElementById('set-admin-email').value
+      };
+      var btn = document.getElementById('settings-submit-btn');
+      setBtnLoading(btn, true, 'Saving settings...');
+      STATE.pendingRequest = true;
+      call('saveSettings', data, STATE.admin.name).then(function (res) {
+        STATE.pendingRequest = false;
+        setBtnLoading(btn, false, 'Save Settings');
+        if (res.success) {
+          toast(res.message, 'success');
+          STATE.settings = res.settings;
+          document.getElementById('school-name-side').textContent = STATE.settings.SCHOOL_NAME;
+        } else {
+          toast(res.message || 'Could not save settings.', 'error');
+        }
+      }).catch(function () {
+        STATE.pendingRequest = false;
+        setBtnLoading(btn, false, 'Save Settings');
+        friendlyError();
+      });
+    });
+  }
+
+  function loadSettingsPage() {
+    call('getSettingsForClient').then(function (settings) {
+      STATE.settings = settings;
+      document.getElementById('set-school-name').value = settings.SCHOOL_NAME || '';
+      document.getElementById('set-school-motto').value = settings.SCHOOL_MOTTO || '';
+      document.getElementById('set-school-email').value = settings.SCHOOL_EMAIL || '';
+      document.getElementById('set-school-phone').value = settings.SCHOOL_PHONE || '';
+      document.getElementById('set-school-address').value = settings.SCHOOL_ADDRESS || '';
+      document.getElementById('set-school-logo').value = settings.SCHOOL_LOGO_URL || '';
+      document.getElementById('set-academic-year').value = settings.ACADEMIC_YEAR || '';
+      document.getElementById('set-currency').value = settings.CURRENCY || '';
+      document.getElementById('set-admin-email').value = settings.ADMIN_EMAIL || '';
+    }).catch(friendlyError);
+
+    loadClassesTable();
+    loadAdminsTable();
+  }
+
+  function bindClassForm() {
+    document.getElementById('class-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var data = { className: document.getElementById('cf-name').value, expectedFee: document.getElementById('cf-fee').value, academicYear: STATE.settings.ACADEMIC_YEAR };
+      call('addClass', data, STATE.admin.name).then(function (res) {
+        if (res.success) { toast(res.message, 'success'); document.getElementById('class-form').reset(); loadClassesTable(); loadClasses(); }
+        else toast(res.message || 'Could not add class.', 'error');
+      }).catch(friendlyError);
+    });
+  }
+
+  function loadClassesTable() {
+    var tbody = document.getElementById('classes-table-body');
+    tbody.innerHTML = '<tr><td colspan="3">Loading...</td></tr>';
+    call('getClasses').then(function (classes) {
+      tbody.innerHTML = classes.length ? classes.map(function (c) {
+        return '<tr><td data-label="Class">' + escapeHtml(c.CLASS_NAME) + '</td><td data-label="Academic Year">' + escapeHtml(c.ACADEMIC_YEAR) + '</td><td data-label="Expected Fee">' + formatCurrency(c.EXPECTED_FEE) + '</td></tr>';
+      }).join('') : '<tr><td colspan="3">No classes yet.</td></tr>';
+    });
+  }
+
+  function bindAdminForm() {
+    document.getElementById('admin-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      var data = {
+        name: document.getElementById('adf-name').value,
+        email: document.getElementById('adf-email').value,
+        username: document.getElementById('adf-username').value,
+        role: document.getElementById('adf-role').value
+      };
+      call('addAdmin', data, STATE.admin.name).then(function (res) {
+        if (res.success) { toast(res.message, 'success'); document.getElementById('admin-form').reset(); loadAdminsTable(); }
+        else toast(res.message || 'Could not add admin.', 'error');
+      }).catch(friendlyError);
+    });
+  }
+
+  function loadAdminsTable() {
+    var tbody = document.getElementById('admins-table-body');
+    tbody.innerHTML = '<tr><td colspan="5">Loading...</td></tr>';
+    call('getAdmins').then(function (admins) {
+      tbody.innerHTML = admins.length ? admins.map(function (a) {
+        return '<tr><td data-label="Name">' + escapeHtml(a.NAME) + '</td><td data-label="Username">' + escapeHtml(a.USERNAME) + '</td><td data-label="Role">' + escapeHtml(a.ROLE) + '</td><td data-label="Status">' + statusBadge(a.STATUS) + '</td>' +
+          '<td data-label="Actions"><button class="btn btn-outline btn-sm" onclick="toggleAdminStatus(\'' + a.ID + '\',\'' + (a.STATUS === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE') + '\')">' + (a.STATUS === 'ACTIVE' ? 'Deactivate' : 'Activate') + '</button></td></tr>';
+      }).join('') : '<tr><td colspan="5">No admins found.</td></tr>';
+    });
+  }
+
+  function toggleAdminStatus(id, status) {
+    call('setAdminStatus', id, status, STATE.admin.name).then(function (res) {
+      if (res.success) { toast(res.message, 'success'); loadAdminsTable(); }
+      else toast(res.message || 'Could not update admin.', 'error');
+    }).catch(friendlyError);
+  }
+</script>

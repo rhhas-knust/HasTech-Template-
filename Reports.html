@@ -1,0 +1,50 @@
+<div id="page-reports" class="page">
+  <div class="page-header">
+    <div>
+      <h2>Reports</h2>
+      <div class="subtitle">Generate and export administrative reports.</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-bottom:18px;">
+    <div class="toolbar">
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="report-type">Report Type</label>
+        <select id="report-type" style="min-width:220px;">
+          <option value="STUDENT_LIST">Student List</option>
+          <option value="CLASS_LIST">Class List</option>
+          <option value="ATTENDANCE">Attendance Report</option>
+          <option value="PAYMENTS">Payment Report</option>
+          <option value="OUTSTANDING_FEES">Outstanding Fees Report</option>
+          <option value="REGISTRATION">Registration Report</option>
+        </select>
+      </div>
+      <div class="form-group" id="report-class-filter-group" style="margin-bottom:0;">
+        <label for="report-class">Class</label>
+        <select id="report-class" class="class-select-source" data-keep-first="true" style="min-width:180px;">
+          <option value="">All Classes</option>
+        </select>
+      </div>
+      <div id="report-date-filter-group" style="display:none;gap:10px;">
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="report-start-date">From</label>
+          <input type="date" id="report-start-date">
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label for="report-end-date">To</label>
+          <input type="date" id="report-end-date">
+        </div>
+      </div>
+      <div style="align-self:end;display:flex;gap:8px;margin-top:20px;">
+        <button type="button" class="btn btn-primary" id="report-generate-btn">View Report</button>
+        <button type="button" class="btn btn-outline" id="report-export-btn">Export PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div id="report-results">
+      <div class="empty-state">Select a report type and click "View Report" to get started.</div>
+    </div>
+  </div>
+</div>

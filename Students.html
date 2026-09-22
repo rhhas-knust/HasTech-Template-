@@ -1,0 +1,49 @@
+<div id="page-students" class="page">
+  <div class="page-header">
+    <div>
+      <h2>Student Directory</h2>
+      <div class="subtitle">Search, filter, and manage every student record.</div>
+    </div>
+    <button class="btn btn-primary" data-quick-action="register-student">+ Register Student</button>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <input type="text" id="student-search" class="search-input" placeholder="Search by name or student ID...">
+      <select id="student-filter-class" class="class-select-source" data-keep-first="true">
+        <option value="">All Classes</option>
+      </select>
+      <select id="student-filter-gender">
+        <option value="">All Genders</option>
+        <option value="Male">Male</option>
+        <option value="Female">Female</option>
+      </select>
+      <select id="student-filter-status">
+        <option value="">All Statuses</option>
+        <option value="ACTIVE">Active</option>
+        <option value="INACTIVE">Inactive</option>
+        <option value="GRADUATED">Graduated</option>
+        <option value="TRANSFERRED">Transferred</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table class="responsive-table">
+        <thead>
+          <tr><th>Student ID</th><th>Name</th><th>Class</th><th>Gender</th><th>Status</th><th>Registered</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="students-table-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div id="page-student-profile" class="page">
+  <div class="page-header">
+    <div>
+      <h2>Student Profile</h2>
+      <div class="subtitle">Full record, attendance, and payment history.</div>
+    </div>
+    <button class="btn btn-outline" data-quick-action="students">&larr; Back to Directory</button>
+  </div>
+  <div id="student-profile-body" class="card"></div>
+</div>

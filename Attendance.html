@@ -1,0 +1,33 @@
+<div id="page-attendance" class="page">
+  <div class="page-header">
+    <div>
+      <h2>Attendance</h2>
+      <div class="subtitle">Select a class and date, then mark each student.</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="toolbar">
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="att-class">Class</label>
+        <select id="att-class" class="class-select-source" data-keep-first="true" style="min-width:200px;">
+          <option value="">Select class</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin-bottom:0;">
+        <label for="att-date">Date</label>
+        <input type="date" id="att-date" style="min-width:170px;">
+      </div>
+      <div class="form-group" style="margin-bottom:0;align-self:end;">
+        <button type="button" class="btn btn-outline" id="att-mark-all-present" style="margin-top:20px;">Mark All Present</button>
+      </div>
+    </div>
+
+    <form id="attendance-form">
+      <div id="attendance-student-list" style="margin-top:10px;"></div>
+      <div class="quick-actions" style="margin-top:18px;">
+        <button type="submit" class="btn btn-primary" id="save-attendance-btn">Save Attendance</button>
+      </div>
+    </form>
+  </div>
+</div>

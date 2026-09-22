@@ -1,0 +1,70 @@
+<div id="page-dashboard" class="page">
+  <div class="page-header">
+    <div>
+      <h2>Welcome back, <span id="dashboard-admin-name"></span></h2>
+      <div class="subtitle">Here's what's happening at your school today.</div>
+    </div>
+  </div>
+
+  <div id="dashboard-content">
+    <div class="stat-grid">
+      <div class="stat-card">
+        <div class="stat-icon icon-blue">&#128101;</div>
+        <div class="stat-value" id="stat-total-students">0</div>
+        <div class="stat-label">Total Students</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon icon-green">&#9989;</div>
+        <div class="stat-value" id="stat-active-students">0</div>
+        <div class="stat-label">Active Students</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon icon-teal">&#127979;</div>
+        <div class="stat-value" id="stat-total-classes">0</div>
+        <div class="stat-label">Total Classes</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon icon-blue">&#128203;</div>
+        <div class="stat-value" id="stat-today-attendance">0 / 0</div>
+        <div class="stat-label">Today's Attendance</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon icon-red">&#128181;</div>
+        <div class="stat-value" id="stat-outstanding-fees">GHS 0.00</div>
+        <div class="stat-label">Outstanding Fees</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon icon-orange">&#128176;</div>
+        <div class="stat-value" id="stat-payments-month">GHS 0.00</div>
+        <div class="stat-label">Payments This Month</div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:18px;">
+      <div class="section-title">Quick Actions</div>
+      <div class="quick-actions">
+        <button class="btn btn-primary" data-quick-action="register-student">+ Register Student</button>
+        <button class="btn btn-outline" data-quick-action="attendance">+ Record Attendance</button>
+        <button class="btn btn-outline" data-quick-action="payments">+ Record Payment</button>
+        <button class="btn btn-outline" data-quick-action="announcements">+ Announcement</button>
+        <button class="btn btn-outline" data-quick-action="reports">+ Generate Report</button>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="section-title">Recent Students</div>
+        <div id="recent-students-list"></div>
+      </div>
+      <div class="card">
+        <div class="section-title">Recent Activities</div>
+        <div id="recent-activity-list"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:18px;">
+      <div class="section-title">Announcements</div>
+      <div id="dashboard-announcements-list"></div>
+    </div>
+  </div>
+</div>

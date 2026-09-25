@@ -6,9 +6,38 @@
  * writes) consistent across the app.
  */
 
-/** Returns the spreadsheet this script is bound to. */
+/**
+ * Returns the database spreadsheet. If this script is bound to a Sheet
+ * (Extensions -> Apps Script from inside a spreadsheet), that spreadsheet
+ * is used. If it's a standalone script project, a dedicated spreadsheet is
+ * created on first use and its ID is remembered in Script Properties, so
+ * every later call (and every other user of the deployed web app) reuses
+ * the same database instead of creating a new one each time.
+ */
 function getDb() {
-  return SpreadsheetApp.getActiveSpreadsheet();
+  var bound = SpreadsheetApp.getActiveSpreadsheet();
+  if (bound) return bound;
+
+  var props = PropertiesService.getScriptProperties();
+  var savedId = props.getProperty('DATABASE_SPREADSHEET_ID');
+  if (savedId) {
+    try {
+      return SpreadsheetApp.openById(savedId);
+    } catch (e) {
+      console.error('Saved database spreadsheet is no longer accessible, creating a new one: ' + e);
+    }
+  }
+
+  var created = SpreadsheetApp.create('HASTECH School Management System - Database');
+  props.setProperty('DATABASE_SPREADSHEET_ID', created.getId());
+  return created;
+}
+
+/** Utility to look up the database spreadsheet's URL - handy to run manually from the editor. */
+function getDatabaseUrl() {
+  var url = getDb().getUrl();
+  console.log(url);
+  return url;
 }
 
 /** Returns a sheet by name, creating it (with headers) if it doesn't exist. */

@@ -91,7 +91,7 @@ function getAllSettings() {
   var settings = {};
   for (var i = 1; i < data.length; i++) {
     var key = data[i][0];
-    if (key) settings[key] = data[i][1];
+    if (key) settings[key] = cellToClient(data[i][1]);
   }
   _settingsCache = settings;
   return settings;

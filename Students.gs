@@ -103,7 +103,7 @@ function createStudent(data, user) {
         sendRegistrationEmail(studentObj, guardianObj);
       }
 
-      return { success: true, student: studentObj, message: 'Student registered successfully.' };
+      return toClient({ success: true, student: studentObj, message: 'Student registered successfully.' });
     } finally {
       lock.releaseLock();
     }

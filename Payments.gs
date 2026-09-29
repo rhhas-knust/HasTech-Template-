@@ -54,7 +54,7 @@ function recordPayment(data, user) {
 
     logActivity(user, 'PAYMENT_RECORDED', formatCurrencyServer(amount) + ' ' + data.paymentType + ' from ' + paymentObj.STUDENT_NAME, paymentId);
 
-    return { success: true, payment: paymentObj, message: 'Payment recorded successfully.' };
+    return toClient({ success: true, payment: paymentObj, message: 'Payment recorded successfully.' });
   } catch (e) {
     console.error('recordPayment failed: ' + e);
     return { success: false, message: 'Something went wrong. Please try again.' };

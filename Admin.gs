@@ -109,7 +109,7 @@ function createAnnouncement(data, user) {
     };
     appendRowFromObject(SHEETS.ANNOUNCEMENTS, obj);
     logActivity(user, 'ANNOUNCEMENT_CREATED', 'Created announcement "' + obj.TITLE + '"', obj.ANNOUNCEMENT_ID);
-    return { success: true, announcement: obj, message: 'Announcement created.' };
+    return toClient({ success: true, announcement: obj, message: 'Announcement created.' });
   } catch (e) {
     console.error('createAnnouncement failed: ' + e);
     return { success: false, message: 'Something went wrong. Please try again.' };
@@ -235,7 +235,7 @@ function exportReportPDF(type, filters, user) {
       rows.forEach(function (row) {
         tableData.push(headers.map(function (h) {
           var val = row[h];
-          if (val instanceof Date) return formatDateForDoc(val);
+          if (isDateValue(val) || (typeof val === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(val))) return formatDateForDoc(val);
           return val === undefined || val === null ? '' : String(val);
         }));
       });
@@ -308,7 +308,7 @@ function addAdmin(data, user) {
     };
     appendRowFromObject(SHEETS.ADMINS, obj);
     logActivity(user, 'ADMIN_CREATED', 'Added admin user ' + obj.NAME, obj.ID);
-    return { success: true, admin: obj, message: 'Admin added successfully.' };
+    return toClient({ success: true, admin: obj, message: 'Admin added successfully.' });
   } catch (e) {
     console.error('addAdmin failed: ' + e);
     return { success: false, message: 'Something went wrong. Please try again.' };
@@ -340,7 +340,7 @@ function addClass(data, user) {
     };
     appendRowFromObject(SHEETS.CLASSES, obj);
     logActivity(user, 'CLASS_CREATED', 'Added class ' + obj.CLASS_NAME, obj.CLASS_ID);
-    return { success: true, classObj: obj, message: 'Class added successfully.' };
+    return toClient({ success: true, classObj: obj, message: 'Class added successfully.' });
   } catch (e) {
     console.error('addClass failed: ' + e);
     return { success: false, message: 'Something went wrong. Please try again.' };

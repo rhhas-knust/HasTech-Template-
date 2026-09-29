@@ -56,6 +56,26 @@ function getSheet(name) {
   return sheet;
 }
 
+/** True for Date objects (checked via toString so it also works across script contexts). */
+function isDateValue(v) {
+  return Object.prototype.toString.call(v) === '[object Date]';
+}
+
+/**
+ * Converts a spreadsheet cell value into something google.script.run can send to the browser.
+ * Date objects cannot be returned to client code (the browser receives null instead),
+ * so dates travel as ISO-8601 strings and the client turns them back with new Date(...).
+ */
+function cellToClient(v) {
+  if (isDateValue(v)) return isNaN(v.getTime()) ? '' : v.toISOString();
+  return v;
+}
+
+/** Makes any value safe to return to the browser (Dates become ISO strings, undefined becomes null). */
+function toClient(value) {
+  return value === undefined ? null : JSON.parse(JSON.stringify(value));
+}
+
 /** Converts a sheet's rows into an array of plain objects keyed by header name. */
 function sheetToObjects(sheetName) {
   var sheet = getSheet(sheetName);
@@ -70,7 +90,7 @@ function sheetToObjects(sheetName) {
     if (row.join('') === '') continue;
     var obj = {};
     for (var c = 0; c < headers.length; c++) {
-      obj[headers[c]] = row[c];
+      obj[headers[c]] = cellToClient(row[c]);
     }
     obj._row = r + 1; // 1-based sheet row number, used for updates/deletes
     out.push(obj);

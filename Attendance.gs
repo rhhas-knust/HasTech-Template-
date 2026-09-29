@@ -38,8 +38,9 @@ function normalizeDateKey(date) {
   if (!date) return '';
   // Plain "yyyy-MM-dd" strings (e.g. from an HTML date input) are used as-is,
   // avoiding a Date round-trip that could shift the day across timezones.
-  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date)) {
-    return date.substring(0, 10);
+  // Longer ISO strings (sheet dates sent as text) fall through and are read in the script's timezone.
+  if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    return date;
   }
   var d = (date instanceof Date) ? date : new Date(date);
   if (isNaN(d.getTime())) return String(date);

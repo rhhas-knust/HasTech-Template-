@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>School Management System</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+  <!-- Landing: shown at the bare domain, where no school link was given -->
+  <div id="landing-screen" class="center-screen hidden">
+    <div class="login-card">
+      <div class="brand-icon">H</div>
+      <h1>HASTECH School Management System</h1>
+      <div class="motto">Open the link your school gave you, for example <strong>/bright-future</strong>.</div>
+      <div class="login-error" id="landing-error"></div>
+    </div>
+  </div>
+
+  <!-- Login -->
+  <div id="login-screen" class="center-screen hidden">
+    <div class="login-card">
+      <img id="login-logo" class="login-logo hidden" alt="">
+      <div class="brand-icon" id="login-brand-icon">H</div>
+      <h1 id="login-school-name">School</h1>
+      <div class="motto" id="login-motto"></div>
+      <p class="login-help">Sign in with the Google account your school administrator added.</p>
+      <div id="gsi-button" class="gsi-wrap"></div>
+      <form id="test-login-form" class="hidden">
+        <div class="form-group">
+          <label for="test-login-email">Test sign-in (local development only)</label>
+          <input type="email" id="test-login-email" placeholder="admin@example.com">
+        </div>
+        <button type="submit" class="btn btn-outline btn-block" id="test-login-btn">Sign in for testing</button>
+      </form>
+      <div class="login-error" id="login-error"></div>
+      <div class="login-foot">Powered by HASTECH Solutions</div>
+    </div>
+  </div>
+
+  <div id="global-loader" class="visible">
+    <span class="spinner dark"></span>
+    <div class="loader-text" id="loader-text">Loading...</div>
+  </div>
+  <div id="toast-container"></div>
+  <div id="sidebar-backdrop"></div>
+
+  <div id="app-shell">
+    <aside id="sidebar">
+      <div class="brand">
+        <img id="side-logo" class="side-logo hidden" alt="">
+        <div class="logo-badge" id="side-badge">H</div>
+        <div class="brand-text">
+          <div class="school-name" id="school-name-side">School</div>
+          <div class="app-label">School Management System</div>
+        </div>
+      </div>
+      <nav>
+        <div class="nav-item active" data-page="dashboard"><span class="nav-icon">&#127968;</span> Dashboard</div>
+
+        <div class="nav-group-label">Students</div>
+        <div class="nav-item" data-page="students"><span class="nav-icon">&#128101;</span> All Students</div>
+        <div class="nav-item" data-page="register-student"><span class="nav-icon">&#128221;</span> Register Student</div>
+
+        <div class="nav-group-label">Operations</div>
+        <div class="nav-item" data-page="attendance" data-module="attendance"><span class="nav-icon">&#128203;</span> Attendance</div>
+        <div class="nav-item" data-page="payments" data-module="payments"><span class="nav-icon">&#128176;</span> Payments</div>
+        <div class="nav-item" data-page="announcements" data-module="announcements"><span class="nav-icon">&#128227;</span> Announcements</div>
+        <div class="nav-item" data-page="reports" data-module="reports"><span class="nav-icon">&#128202;</span> Reports</div>
+
+        <div class="nav-group-label" data-min-role="ADMIN">System</div>
+        <div class="nav-item" data-page="settings" data-min-role="ADMIN"><span class="nav-icon">&#9881;&#65039;</span> Settings</div>
+        <div class="nav-item" id="logout-btn"><span class="nav-icon">&#128682;</span> Sign out</div>
+      </nav>
+      <div class="sidebar-footer">Powered by HASTECH Solutions</div>
+    </aside>
+
+    <div id="main-area">
+      <header id="topbar">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Open menu">&#9776;</button>
+          <div class="page-title" id="page-title">Dashboard</div>
+        </div>
+        <div class="topbar-right">
+          <div class="user-chip">
+            <img id="user-picture" class="avatar-img hidden" alt="" referrerpolicy="no-referrer">
+            <div class="avatar" id="user-avatar">A</div>
+            <div>
+              <div id="user-name">Admin</div>
+              <div class="user-role" id="user-role"></div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main id="content">
+
+        <!-- ================= DASHBOARD ================= -->
+        <div id="page-dashboard" class="page">
+          <div class="page-header">
+            <div>
+              <h2>Welcome back, <span id="dashboard-admin-name"></span></h2>
+              <div class="subtitle">Here's what's happening at your school today.</div>
+            </div>
+          </div>
+
+          <div id="dashboard-content">
+            <div class="stat-grid">
+              <div class="stat-card"><div class="stat-icon icon-blue">&#128101;</div><div class="stat-value" id="stat-total-students">0</div><div class="stat-label">Total Students</div></div>
+              <div class="stat-card"><div class="stat-icon icon-green">&#9989;</div><div class="stat-value" id="stat-active-students">0</div><div class="stat-label">Active Students</div></div>
+              <div class="stat-card"><div class="stat-icon icon-teal">&#127979;</div><div class="stat-value" id="stat-total-classes">0</div><div class="stat-label">Total Classes</div></div>
+              <div class="stat-card" data-module="attendance"><div class="stat-icon icon-blue">&#128203;</div><div class="stat-value" id="stat-today-attendance">0 / 0</div><div class="stat-label">Today's Attendance</div></div>
+              <div class="stat-card" data-module="payments"><div class="stat-icon icon-red">&#128181;</div><div class="stat-value" id="stat-outstanding-fees">0.00</div><div class="stat-label">Outstanding Fees</div></div>
+              <div class="stat-card" data-module="payments"><div class="stat-icon icon-orange">&#128176;</div><div class="stat-value" id="stat-payments-month">0.00</div><div class="stat-label">Payments This Month</div></div>
+            </div>
+
+            <div class="card" style="margin-bottom:18px;">
+              <div class="section-title">Quick Actions</div>
+              <div class="quick-actions">
+                <button class="btn btn-primary" data-quick-action="register-student">+ Register Student</button>
+                <button class="btn btn-outline" data-quick-action="attendance" data-module="attendance">+ Record Attendance</button>
+                <button class="btn btn-outline" data-quick-action="payments" data-module="payments">+ Record Payment</button>
+                <button class="btn btn-outline" data-quick-action="announcements" data-module="announcements">+ Announcement</button>
+                <button class="btn btn-outline" data-quick-action="reports" data-module="reports">+ Generate Report</button>
+              </div>
+            </div>
+
+            <div class="grid-2">
+              <div class="card"><div class="section-title">Recent Students</div><div id="recent-students-list"></div></div>
+              <div class="card"><div class="section-title">Recent Activities</div><div id="recent-activity-list"></div></div>
+            </div>
+
+            <div class="card" style="margin-top:18px;" data-module="announcements">
+              <div class="section-title">Announcements</div>
+              <div id="dashboard-announcements-list"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= STUDENT DIRECTORY ================= -->
+        <div id="page-students" class="page">
+          <div class="page-header">
+            <div>
+              <h2>Student Directory</h2>
+              <div class="subtitle">Search, filter, and manage every student record.</div>
+            </div>
+            <button class="btn btn-primary" data-quick-action="register-student">+ Register Student</button>
+          </div>
+
+          <div class="card">
+            <div class="toolbar">
+              <input type="text" id="student-search" class="search-input" placeholder="Search by name or student ID...">
+              <select id="student-filter-class" class="class-select-source" data-keep-first="true"><option value="">All Classes</option></select>
+              <select id="student-filter-gender">
+                <option value="">All Genders</option><option value="Male">Male</option><option value="Female">Female</option>
+              </select>
+              <select id="student-filter-status">
+                <option value="">All Statuses</option><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option>
+                <option value="GRADUATED">Graduated</option><option value="TRANSFERRED">Transferred</option>
+              </select>
+            </div>
+            <div class="table-wrap">
+              <table class="responsive-table">
+                <thead><tr><th>Student ID</th><th>Name</th><th>Class</th><th>Gender</th><th>Status</th><th>Registered</th><th>Actions</th></tr></thead>
+                <tbody id="students-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div id="page-student-profile" class="page">
+          <div class="page-header">
+            <div>
+              <h2>Student Profile</h2>
+              <div class="subtitle">Full record, attendance, and payment history.</div>
+            </div>
+            <button class="btn btn-outline" data-quick-action="students">&larr; Back to Directory</button>
+          </div>
+          <div id="student-profile-body" class="card"></div>
+        </div>
+
+        <!-- ================= REGISTER / EDIT STUDENT ================= -->
+        <div id="page-register-student" class="page">
+          <div class="page-header">
+            <div>
+              <h2 id="student-form-title">Register Student</h2>
+              <div class="subtitle">Student ID is generated automatically on save.</div>
+            </div>
+            <button class="btn btn-outline" data-quick-action="students">&larr; Back to Directory</button>
+          </div>
+
+          <form id="student-form" class="card">
+            <input type="hidden" id="sf-editing-id">
+            <fieldset>
+              <legend>Student Information</legend>
+              <div class="form-row">
+                <div class="form-group"><label for="sf-first-name">First Name <span class="req">*</span></label><input type="text" id="sf-first-name" maxlength="80" required></div>
+                <div class="form-group"><label for="sf-middle-name">Middle Name</label><input type="text" id="sf-middle-name" maxlength="80"></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label for="sf-last-name">Last Name <span class="req">*</span></label><input type="text" id="sf-last-name" maxlength="80" required></div>
+                <div class="form-group"><label for="sf-dob">Date of Birth <span class="req">*</span></label><input type="date" id="sf-dob" required></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="sf-gender">Gender <span class="req">*</span></label>
+                  <select id="sf-gender" required><option value="">Select gender</option><option value="Male">Male</option><option value="Female">Female</option></select>
+                </div>
+                <div class="form-group">
+                  <label for="sf-class">Class <span class="req">*</span></label>
+                  <select id="sf-class" class="class-select-source" data-keep-first="true" required><option value="">Select class</option></select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label for="sf-academic-year">Academic Year</label><input type="text" id="sf-academic-year" maxlength="20"></div>
+                <div class="form-group"><label for="sf-admission-date">Admission Date</label><input type="date" id="sf-admission-date"></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label for="sf-phone">Student Phone</label><input type="tel" id="sf-phone" maxlength="40"></div>
+                <div class="form-group"><label for="sf-email">Student Email</label><input type="email" id="sf-email" maxlength="200"></div>
+              </div>
+              <div class="form-group"><label for="sf-address">Residential Address</label><textarea id="sf-address" maxlength="500"></textarea></div>
+              <div class="form-row">
+                <div class="form-group"><label for="sf-previous-school">Previous School</label><input type="text" id="sf-previous-school" maxlength="200"></div>
+                <div class="form-group">
+                  <label for="sf-status">Status</label>
+                  <select id="sf-status"><option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option><option value="GRADUATED">Graduated</option><option value="TRANSFERRED">Transferred</option></select>
+                </div>
+              </div>
+              <div class="form-group"><label for="sf-photo-url">Photo link (optional, https://...)</label><input type="url" id="sf-photo-url" maxlength="500" placeholder="https://"></div>
+            </fieldset>
+
+            <fieldset>
+              <legend>Guardian Information</legend>
+              <div class="form-row">
+                <div class="form-group"><label for="sf-guardian-name">Guardian Name</label><input type="text" id="sf-guardian-name" maxlength="120"></div>
+                <div class="form-group">
+                  <label for="sf-guardian-relationship">Relationship</label>
+                  <select id="sf-guardian-relationship"><option value="">Select relationship</option><option value="Father">Father</option><option value="Mother">Mother</option><option value="Guardian">Guardian</option><option value="Other">Other</option></select>
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label for="sf-guardian-phone">Guardian Phone</label><input type="tel" id="sf-guardian-phone" maxlength="40"></div>
+                <div class="form-group"><label for="sf-guardian-email">Guardian Email</label><input type="email" id="sf-guardian-email" maxlength="200"></div>
+              </div>
+              <div class="form-row">
+                <div class="form-group"><label for="sf-guardian-occupation">Occupation</label><input type="text" id="sf-guardian-occupation" maxlength="120"></div>
+                <div class="form-group"><label for="sf-guardian-address">Guardian Address</label><input type="text" id="sf-guardian-address" maxlength="500"></div>
+              </div>
+            </fieldset>
+
+            <div class="quick-actions">
+              <button type="submit" class="btn btn-primary" id="student-submit-btn">Register Student</button>
+              <button type="button" class="btn btn-outline" data-quick-action="students">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- ================= ATTENDANCE ================= -->
+        <div id="page-attendance" class="page">
+          <div class="page-header">
+            <div>
+              <h2>Attendance</h2>
+              <div class="subtitle">Select a class and date, then mark each student.</div>
+            </div>
+          </div>
+          <div class="card">
+            <div class="toolbar">
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="att-class">Class</label>
+                <select id="att-class" class="class-select-source" data-keep-first="true" style="min-width:200px;"><option value="">Select class</option></select>
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="att-date">Date</label>
+                <input type="date" id="att-date" style="min-width:170px;">
+              </div>
+              <div class="form-group" style="margin-bottom:0;align-self:end;">
+                <button type="button" class="btn btn-outline" id="att-mark-all-present" style="margin-top:20px;">Mark All Present</button>
+              </div>
+            </div>
+            <form id="attendance-form">
+              <div id="attendance-student-list" style="margin-top:10px;"></div>
+              <div class="quick-actions" style="margin-top:18px;">
+                <button type="submit" class="btn btn-primary" id="save-attendance-btn">Save Attendance</button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+        <!-- ================= PAYMENTS ================= -->
+        <div id="page-payments" class="page">
+          <div class="page-header">
+            <div>
+              <h2>Payments</h2>
+              <div class="subtitle">Record fee payments and print receipts.</div>
+            </div>
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="section-title">Record Payment</div>
+              <form id="payment-form">
+                <input type="hidden" id="pay-student-id">
+                <div class="form-group" style="position:relative;">
+                  <label for="payment-student-search">Student <span class="req">*</span></label>
+                  <input type="text" id="payment-student-search" placeholder="Search by name or student ID..." autocomplete="off">
+                  <div id="payment-student-results" class="search-results"></div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="pay-type">Payment Type <span class="req">*</span></label>
+                    <select id="pay-type" required>
+                      <option value="School Fees">School Fees</option><option value="Registration">Registration</option><option value="Examination">Examination</option>
+                      <option value="Books">Books</option><option value="Uniform">Uniform</option><option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div class="form-group"><label for="pay-amount">Amount <span class="req">*</span></label><input type="number" id="pay-amount" min="0.01" step="0.01" required></div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="pay-method">Payment Method <span class="req">*</span></label>
+                    <select id="pay-method" required><option value="Cash">Cash</option><option value="Mobile Money">Mobile Money</option><option value="Bank Transfer">Bank Transfer</option><option value="Other">Other</option></select>
+                  </div>
+                  <div class="form-group"><label for="pay-date">Payment Date <span class="req">*</span></label><input type="date" id="pay-date" required></div>
+                </div>
+                <div class="form-group"><label for="pay-reference">Reference</label><input type="text" id="pay-reference" maxlength="120" placeholder="Transaction/receipt reference (optional)"></div>
+                <button type="submit" class="btn btn-primary btn-block" id="payment-submit-btn">Record Payment</button>
+              </form>
+            </div>
+            <div class="card">
+              <div class="section-title">Filters</div>
+              <div class="form-group">
+                <label for="payments-filter-class">Class</label>
+                <select id="payments-filter-class" class="class-select-source" data-keep-first="true"><option value="">All Classes</option></select>
+              </div>
+              <div class="form-group">
+                <label for="payments-filter-type">Payment Type</label>
+                <select id="payments-filter-type">
+                  <option value="">All Types</option><option value="School Fees">School Fees</option><option value="Registration">Registration</option>
+                  <option value="Examination">Examination</option><option value="Books">Books</option><option value="Uniform">Uniform</option><option value="Other">Other</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="card" style="margin-top:18px;">
+            <div class="section-title">Payment History</div>
+            <div class="table-wrap">
+              <table class="responsive-table">
+                <thead><tr><th>Student</th><th>Type</th><th>Amount</th><th>Method</th><th>Date</th><th>Recorded By</th><th>Actions</th></tr></thead>
+                <tbody id="payments-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ================= ANNOUNCEMENTS ================= -->
+        <div id="page-announcements" class="page">
+          <div class="page-header">
+            <div>
+              <h2>Announcements</h2>
+              <div class="subtitle">Publish updates for students, parents, and staff.</div>
+            </div>
+            <button class="btn btn-primary" id="new-announcement-btn">+ New Announcement</button>
+          </div>
+          <div id="announcements-list"></div>
+        </div>
+
+        <!-- ================= REPORTS ================= -->
+        <div id="page-reports" class="page">
+          <div class="page-header">
+            <div>
+              <h2>Reports</h2>
+              <div class="subtitle">View and export administrative reports.</div>
+            </div>
+          </div>
+          <div class="card" style="margin-bottom:18px;">
+            <div class="toolbar">
+              <div class="form-group" style="margin-bottom:0;">
+                <label for="report-type">Report Type</label>
+                <select id="report-type" style="min-width:220px;">
+                  <option value="STUDENT_LIST">Student List</option>
+                  <option value="CLASS_LIST">Class List</option>
+                  <option value="ATTENDANCE" data-module="attendance">Attendance Report</option>
+                  <option value="PAYMENTS" data-module="payments">Payment Report</option>
+                  <option value="OUTSTANDING_FEES" data-module="payments">Outstanding Fees Report</option>
+                  <option value="REGISTRATION">Registration Report</option>
+                </select>
+              </div>
+              <div class="form-group" id="report-class-filter-group" style="margin-bottom:0;">
+                <label for="report-class">Class</label>
+                <select id="report-class" class="class-select-source" data-keep-first="true" style="min-width:180px;"><option value="">All Classes</option></select>
+              </div>
+              <div id="report-date-filter-group" style="display:none;gap:10px;">
+                <div class="form-group" style="margin-bottom:0;"><label for="report-start-date">From</label><input type="date" id="report-start-date"></div>
+                <div class="form-group" style="margin-bottom:0;"><label for="report-end-date">To</label><input type="date" id="report-end-date"></div>
+              </div>
+              <div style="align-self:end;display:flex;gap:8px;margin-top:20px;">
+                <button type="button" class="btn btn-primary" id="report-generate-btn">View Report</button>
+                <button type="button" class="btn btn-outline" id="report-export-btn">Export PDF</button>
+              </div>
+            </div>
+          </div>
+          <div class="card">
+            <div id="report-results"><div class="empty-state">Select a report type and click "View Report" to get started.</div></div>
+          </div>
+        </div>
+
+        <!-- ================= SETTINGS ================= -->
+        <div id="page-settings" class="page">
+          <div class="page-header">
+            <div>
+              <h2>Settings</h2>
+              <div class="subtitle">School information, branding, features, classes and staff access.</div>
+            </div>
+          </div>
+
+          <div class="tab-bar">
+            <button type="button" class="tab-btn active" data-settings-tab="general">School &amp; Branding</button>
+            <button type="button" class="tab-btn" data-settings-tab="classes">Classes</button>
+            <button type="button" class="tab-btn" data-settings-tab="admins">Staff Access</button>
+          </div>
+
+          <div class="settings-tab" id="settings-tab-general">
+            <form id="settings-form" class="card">
+              <fieldset>
+                <legend>School Information</legend>
+                <div class="form-row">
+                  <div class="form-group"><label for="set-school-name">School Name <span class="req">*</span></label><input type="text" id="set-school-name" maxlength="200"></div>
+                  <div class="form-group"><label for="set-school-motto">School Motto</label><input type="text" id="set-school-motto" maxlength="200"></div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group"><label for="set-school-email">School Email</label><input type="email" id="set-school-email" maxlength="200"></div>
+                  <div class="form-group"><label for="set-school-phone">School Phone</label><input type="tel" id="set-school-phone" maxlength="60"></div>
+                </div>
+                <div class="form-group"><label for="set-school-address">School Address</label><input type="text" id="set-school-address" maxlength="500"></div>
+                <div class="form-row">
+                  <div class="form-group"><label for="set-academic-year">Academic Year</label><input type="text" id="set-academic-year" placeholder="2026/2027" maxlength="20"></div>
+                  <div class="form-group"><label for="set-currency">Currency</label><input type="text" id="set-currency" placeholder="GHS" maxlength="10"></div>
+                </div>
+                <div class="form-row">
+                  <div class="form-group"><label for="set-timezone">Timezone</label><input type="text" id="set-timezone" placeholder="Africa/Accra" maxlength="60"></div>
+                  <div class="form-group"><label for="set-id-prefix">Student ID prefix</label><input type="text" id="set-id-prefix" placeholder="Leave blank to use the school's initials" maxlength="10"></div>
+                </div>
+                <div class="form-group"><label for="set-admin-email">Admin Notification Email</label><input type="email" id="set-admin-email" maxlength="200"></div>
+              </fieldset>
+
+              <fieldset>
+                <legend>Branding</legend>
+                <div class="form-group"><label for="set-school-logo">Logo link (https://..., PNG or JPG)</label><input type="url" id="set-school-logo" placeholder="https://..." maxlength="500"></div>
+                <div class="form-row">
+                  <div class="form-group"><label for="set-primary-color">Main colour</label><input type="color" id="set-primary-color" value="#0F2A4A"></div>
+                  <div class="form-group"><label for="set-accent-color">Accent colour</label><input type="color" id="set-accent-color" value="#2FB8A3"></div>
+                </div>
+              </fieldset>
+
+              <fieldset>
+                <legend>Features</legend>
+                <div class="check-row">
+                  <label class="check"><input type="checkbox" class="module-toggle" value="attendance"> Attendance</label>
+                  <label class="check"><input type="checkbox" class="module-toggle" value="payments"> Payments &amp; fees</label>
+                  <label class="check"><input type="checkbox" class="module-toggle" value="announcements"> Announcements</label>
+                  <label class="check"><input type="checkbox" class="module-toggle" value="reports"> Reports</label>
+                </div>
+              </fieldset>
+              <button type="submit" class="btn btn-primary" id="settings-submit-btn">Save Settings</button>
+            </form>
+          </div>
+
+          <div class="settings-tab hidden" id="settings-tab-classes">
+            <div class="grid-2">
+              <div class="card">
+                <div class="section-title">Add Class</div>
+                <form id="class-form">
+                  <div class="form-group"><label for="cf-name">Class Name <span class="req">*</span></label><input type="text" id="cf-name" maxlength="80" required></div>
+                  <div class="form-group"><label for="cf-fee">Expected Fee (per student)</label><input type="number" id="cf-fee" min="0" step="0.01"></div>
+                  <button type="submit" class="btn btn-primary btn-block" id="class-submit-btn">Add Class</button>
+                </form>
+              </div>
+              <div class="card">
+                <div class="section-title">Existing Classes</div>
+                <div class="table-wrap">
+                  <table class="responsive-table">
+                    <thead><tr><th>Class</th><th>Academic Year</th><th>Expected Fee</th></tr></thead>
+                    <tbody id="classes-table-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-tab hidden" id="settings-tab-admins">
+            <div class="grid-2">
+              <div class="card">
+                <div class="section-title">Give a staff member access</div>
+                <form id="admin-form">
+                  <div class="form-group"><label for="adf-name">Full Name <span class="req">*</span></label><input type="text" id="adf-name" maxlength="120" required></div>
+                  <div class="form-group"><label for="adf-email">Gmail / Google account <span class="req">*</span></label><input type="email" id="adf-email" maxlength="200" required placeholder="They sign in with this account"></div>
+                  <div class="form-group">
+                    <label for="adf-role">Role</label>
+                    <select id="adf-role">
+                      <option value="STAFF">Staff &mdash; students, attendance, payments</option>
+                      <option value="ADMIN">Admin &mdash; plus settings, classes, staff</option>
+                      <option value="SUPER_ADMIN">Super Admin &mdash; full control</option>
+                    </select>
+                  </div>
+                  <button type="submit" class="btn btn-primary btn-block" id="admin-submit-btn">Add Staff Member</button>
+                </form>
+              </div>
+              <div class="card">
+                <div class="section-title">Staff with access</div>
+                <div class="table-wrap">
+                  <table class="responsive-table">
+                    <thead><tr><th>Name</th><th>Google account</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+                    <tbody id="admins-table-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-note">School Management System &middot; Powered by HASTECH Solutions</div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Announcement editor -->
+  <div class="modal-overlay" id="announcement-modal">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3 id="announcement-modal-title">New Announcement</h3>
+        <button class="modal-close" type="button" data-close-modal="announcement-modal" aria-label="Close">&times;</button>
+      </div>
+      <form id="announcement-form">
+        <div class="modal-body">
+          <input type="hidden" id="af-editing-id">
+          <div class="form-group"><label for="af-title">Title <span class="req">*</span></label><input type="text" id="af-title" maxlength="200" required></div>
+          <div class="form-group"><label for="af-message">Message <span class="req">*</span></label><textarea id="af-message" maxlength="5000" required></textarea></div>
+          <div class="form-row">
+            <div class="form-group">
+              <label for="af-audience">Audience <span class="req">*</span></label>
+              <select id="af-audience" required>
+                <option value="All Students">All Students</option><option value="Parents/Guardians">Parents/Guardians</option>
+                <option value="Teachers">Teachers</option><option value="Specific Class">Specific Class</option>
+              </select>
+            </div>
+            <div class="form-group"><label for="af-date">Date</label><input type="date" id="af-date"></div>
+          </div>
+          <div class="form-group hidden" id="af-class-group">
+            <label for="af-class">Class</label>
+            <select id="af-class" class="class-select-source" data-keep-first="true"><option value="">Select class</option></select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline" data-close-modal="announcement-modal">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="announcement-submit-btn">Save Announcement</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>
